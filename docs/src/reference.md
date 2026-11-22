@@ -413,7 +413,7 @@ No arguments.
 
 ## `normalize_items`
 
-Normalize the audio items of the chosen tracks with REAPER's own normalization (the one behind Item processing > Normalize): the item gain is set so that the part of the source the item plays reaches target_db in peak, true_peak, lufs_i, lufs_m, lufs_s or rms. Replaces the existing item gain; take volume is kept. Use dry_run to see the gains first, exclude_tracks to skip drums or a reference.
+Normalize the audio items of the chosen tracks with REAPER's own normalization (the one behind Item processing &gt; Normalize): the item gain is set so that the part of the source the item plays reaches target_db in peak, true_peak, lufs_i, lufs_m, lufs_s or rms. Replaces the existing item gain; take volume is kept. Use dry_run to see the gains first, exclude_tracks to skip drums or a reference.
 
 | Argument | Type | Description |
 |---|---|---|
@@ -485,7 +485,7 @@ Rename a REAPER track by its zero-based index from list_tracks.
 
 ## `render_project`
 
-Render the whole project master mix to directory/name.<ext> using the project's saved render format. Deletes an old file with that name first (overwrite=false keeps it), lists the written files and warns when one is missing. Blocks until the render finishes.
+Render the whole project master mix to directory/name.&lt;ext&gt; using the project's saved render format. Deletes an old file with that name first (overwrite=false keeps it), lists the written files and warns when one is missing. Blocks until the render finishes.
 
 | Argument | Type | Description |
 |---|---|---|

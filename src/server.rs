@@ -924,7 +924,7 @@ mod tests {
         );
         for tool in &tools {
             out.push_str(&format!("\n## `{}`\n\n", tool.name));
-            out.push_str(tool.description.as_deref().unwrap_or("").trim());
+            out.push_str(&escape_html(tool.description.as_deref().unwrap_or("").trim()));
             out.push('\n');
             let schema = &tool.input_schema;
             let required: BTreeSet<&str> = schema
@@ -953,6 +953,7 @@ mod tests {
                     .unwrap_or("")
                     .replace('\n', " ")
                     .replace('|', "\\|");
+                let description = escape_html(&description);
                 out.push_str(&format!(
                     "| `{name}`{mark} | {} | {description} |\n",
                     type_name(property)
@@ -960,6 +961,11 @@ mod tests {
             }
         }
         out
+    }
+
+    /// Keeps placeholders such as `<ext>` visible in the rendered book.
+    fn escape_html(text: &str) -> String {
+        text.replace('<', "&lt;").replace('>', "&gt;")
     }
 
     fn type_name(property: &serde_json::Value) -> String {
