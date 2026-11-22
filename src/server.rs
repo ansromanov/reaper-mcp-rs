@@ -904,7 +904,10 @@ mod tests {
             std::fs::write(path, &generated).unwrap();
             return;
         }
-        let current = std::fs::read_to_string(path).unwrap_or_default();
+        // A Windows checkout may turn the file's line endings into CRLF.
+        let current = std::fs::read_to_string(path)
+            .unwrap_or_default()
+            .replace("\r\n", "\n");
         assert!(
             current == generated,
             "docs/src/reference.md is out of date; run REAPER_MCP_UPDATE_DOCS=1 cargo test"
@@ -924,7 +927,9 @@ mod tests {
         );
         for tool in &tools {
             out.push_str(&format!("\n## `{}`\n\n", tool.name));
-            out.push_str(&escape_html(tool.description.as_deref().unwrap_or("").trim()));
+            out.push_str(&escape_html(
+                tool.description.as_deref().unwrap_or("").trim(),
+            ));
             out.push('\n');
             let schema = &tool.input_schema;
             let required: BTreeSet<&str> = schema
