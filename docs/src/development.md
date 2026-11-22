@@ -65,8 +65,9 @@ mdbook serve docs
 
 The book is published to GitHub Pages when `docs/` changes on `main`.
 
-## Commit messages
+## Pull request titles
 
-Use [Conventional Commits](https://www.conventionalcommits.org): `feat:` and `fix:` appear in the
-changelog and choose the next version; `docs:`, `test:`, `refactor:`, `ci:` and `chore:` do not.
-See [Releases](releases.md).
+Pull requests are merged with **Squash and merge**: the title becomes the commit message on `main`,
+so it must be a [Conventional Commit](https://www.conventionalcommits.org). `feat:` and `fix:`
+appear in the changelog and choose the next version; `docs:`, `test:`, `refactor:`, `ci:` and
+`chore:` do not. See [Releases](releases.md).

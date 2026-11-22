@@ -7,7 +7,8 @@ tool arguments.
 
 `main` is protected, so a release goes through a pull request like any other change:
 
-1. `scripts/release.sh` picks the next version from the Conventional Commits since the last tag
+1. `scripts/release.sh` picks the next version from the commits since the last tag (one per
+   squash-merged pull request, titled as a Conventional Commit)
    (`feat:` bumps the minor version, `fix:` and `perf:` the patch version, `!` or
    `BREAKING CHANGE` the major version), or takes one given as an argument:
 
