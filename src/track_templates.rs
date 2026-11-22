@@ -337,8 +337,7 @@ pub fn replace_track_fx_chain(
         }
     }
 
-    if insert_before.is_some() && !inserted {
-        let position = insert_before.unwrap();
+    if let (Some(position), false) = (insert_before, inserted) {
         result.push_str(&destination[cursor..position]);
         result.push_str(source_chain.as_deref().unwrap());
         if !source_chain.as_deref().unwrap().ends_with('\n') {

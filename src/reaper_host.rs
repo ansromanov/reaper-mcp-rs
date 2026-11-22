@@ -1,8 +1,9 @@
 //! Windows helpers that must remain available when REAPER's Lua main thread is stuck.
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 use serde_json::Value;
-use std::process::Command;
+#[cfg(windows)]
+use {anyhow::Context, std::process::Command};
 
 #[cfg(windows)]
 fn powershell(script: &str) -> Result<Value> {

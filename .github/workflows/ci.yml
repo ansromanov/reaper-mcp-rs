@@ -1,0 +1,75 @@
+name: CI
+
+# One gate for pull requests and pushes to main: format, lint and tests on Linux,
+# macOS and Windows. Releases are cut by release.yml.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    name: fmt, clippy, tests (Linux)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      # The bridge tests run the real Lua bridge; here they must not be skipped.
+      REAPER_MCP_REQUIRE_LUA: "1"
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install Lua 5.4 and ShellCheck
+        run: sudo apt-get update && sudo apt-get install -y lua5.4 shellcheck
+
+      - name: Format
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Lua syntax
+        run: for f in lua/*.lua tests/lua/*.lua; do luac5.4 -p "$f"; done
+
+      - name: Shell scripts
+        run: shellcheck scripts/*.sh
+
+      - name: Tests
+        run: cargo test --all-targets
+
+  portable:
+    name: clippy, tests (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: macOS, os: macos-latest }
+          - { name: Windows, os: windows-latest }
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      # Windows-only code (window inspection, bridge restart) is compiled only here.
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Tests
+        run: cargo test --all-targets
