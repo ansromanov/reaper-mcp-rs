@@ -1,0 +1,35 @@
+name: Bug report
+description: A tool fails, does the wrong thing, or the install does not work.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: The tool call (name and arguments), what you expected and what you got.
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Tool result or error message
+      render: json
+  - type: input
+    id: version
+    attributes:
+      label: reaper-mcp-rs version
+      description: Output of `reaper-mcp-rs --version`.
+    validations:
+      required: true
+  - type: input
+    id: reaper
+    attributes:
+      label: REAPER version and OS
+      placeholder: REAPER 7.x, Windows 11
+    validations:
+      required: true
+  - type: input
+    id: client
+    attributes:
+      label: MCP client
+      placeholder: Claude Code, Claude Desktop, …

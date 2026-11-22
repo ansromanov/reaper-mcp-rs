@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security problem
+    url: https://github.com/ansromanov/reaper-mcp-rs/security/advisories/new
+    about: Report vulnerabilities privately.
+  - name: Documentation
+    url: https://ansromanov.github.io/reaper-mcp-rs/
+    about: Installation, client setup, tools and troubleshooting.
