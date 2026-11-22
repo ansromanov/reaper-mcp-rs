@@ -1,0 +1,20 @@
+name: Feature request
+description: A REAPER task an agent cannot do yet.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: task
+    attributes:
+      label: What should an agent be able to do?
+      description: The task in REAPER terms, for example "split items at the edit cursor".
+    validations:
+      required: true
+  - type: textarea
+    id: today
+    attributes:
+      label: How do you do it today?
+      description: By hand, with run_action, a script …
+  - type: input
+    id: api
+    attributes:
+      label: ReaScript functions involved (if you know them)

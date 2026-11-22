@@ -1,0 +1,17 @@
+[book]
+title = "reaper-mcp-rs"
+authors = ["Andrei Romanov"]
+description = "MCP server for REAPER: let an AI agent edit, mix, render and check REAPER projects."
+language = "en"
+
+[output.html]
+site-url = "/reaper-mcp-rs/"
+default-theme = "light"
+preferred-dark-theme = "navy"
+git-repository-url = "https://github.com/ansromanov/reaper-mcp-rs"
+edit-url-template = "https://github.com/ansromanov/reaper-mcp-rs/edit/main/docs/{path}"
+no-section-label = true
+
+[output.html.fold]
+enable = true
+level = 1

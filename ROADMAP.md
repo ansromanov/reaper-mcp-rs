@@ -1,7 +1,7 @@
 # Roadmap
 
 > Last updated: 2026-11-22. A living document: it explains the order of work, and GitHub issues track the
-> details. The gaps listed here come from [REAPER API coverage](README.md#reaper-api-coverage).
+> details. The gaps listed here come from [REAPER API coverage](https://ansromanov.github.io/reaper-mcp-rs/api-coverage.html).
 
 ## Goal
 
@@ -17,19 +17,22 @@ to `run_action` or back to the human.
 - **Extensions as a requirement.** SWS, js_ReaScriptAPI or ReaImGui may be used when present, but every tool
   must work without them.
 
-## 0.2: release infrastructure
+## 0.1: first release
 
-Make the project easy to install and safe to change.
+Make the project easy to install and safe to change. Done, waiting for the first release:
 
-- CI on pull requests and `main`: `cargo fmt`, `clippy -D warnings` and tests on Linux, macOS and Windows.
-- A release workflow: SemVer from Conventional Commits, `CHANGELOG.md` and release notes from git-cliff,
-  archives for Windows, macOS and Linux holding the binary, the Lua bridge and the install scripts, plus
-  `SHA256SUMS`.
-- A documentation site (mdBook on GitHub Pages): installation, MCP client setup, a tool reference, security.
-- Issue and pull request templates, `CONTRIBUTING.md`.
-- macOS support in `install-bridge.sh`: it currently defaults to the Linux resource directory.
+- [x] CI on pull requests and `main`: `cargo fmt`, `clippy -D warnings` and tests on Linux, macOS and Windows;
+  `main` accepts changes only through pull requests with passing CI.
+- [x] Releases from release pull requests: SemVer from Conventional Commits, `CHANGELOG.md` and release notes
+  from git-cliff, archives for Windows, macOS and Linux with the binary, the bridge and the install scripts,
+  plus `SHA256SUMS`.
+- [x] One-line installers (`install.sh`, `install.ps1`) and `--version`.
+- [x] A documentation site (mdBook on GitHub Pages) with a tool reference generated from the code.
+- [x] Issue and pull request templates, `CONTRIBUTING.md`, `SECURITY.md`.
+- [x] macOS resource directory and `--startup` in `install-bridge.sh`.
+- [x] Tests without REAPER: the real Lua bridge against a fake ReaScript API.
 
-## 0.3: everyday editing
+## 0.2: everyday editing
 
 What an agent needs between "the project is open" and "the mix can start".
 
@@ -40,7 +43,7 @@ What an agent needs between "the project is open" and "the mix can start".
 - Markers and regions: edit and delete a single one, not only add or clear all.
 - Undo and redo.
 
-## 0.4: MIDI
+## 0.3: MIDI
 
 MIDI is the least covered area (8 of 75 functions).
 
@@ -49,7 +52,7 @@ MIDI is the least covered area (8 of 75 functions).
 - Text, lyric and sysex events.
 - Quantize and humanize by the project grid.
 
-## 0.5: take FX and envelopes
+## 0.4: take FX and envelopes
 
 - Take FX through the same tools as track FX (one code path with a target of track or take).
 - Take envelopes, and deleting an envelope.
@@ -71,5 +74,5 @@ These run alongside the versions above.
 
 - Several MCP clients per IPC directory: today two clients share one request file and disturb each other.
 - Several REAPER instances.
-- Tests without REAPER: a fake bridge that answers the IPC contract, so that the Rust side is covered in CI.
+- Bridge tests for every handler, not only tracks and markers.
 - A self-test that runs the project-changing tools in a throwaway project tab and closes it.

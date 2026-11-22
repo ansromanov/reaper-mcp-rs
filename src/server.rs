@@ -894,6 +894,113 @@ mod tests {
         }
     }
 
+    /// `docs/src/reference.md` lists every tool with its arguments. It is generated from the tool
+    /// definitions; run `REAPER_MCP_UPDATE_DOCS=1 cargo test` to rewrite it after changing a tool.
+    #[test]
+    fn tool_reference_is_up_to_date() {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/docs/src/reference.md");
+        let generated = tool_reference();
+        if std::env::var_os("REAPER_MCP_UPDATE_DOCS").is_some() {
+            std::fs::write(path, &generated).unwrap();
+            return;
+        }
+        // A Windows checkout may turn the file's line endings into CRLF.
+        let current = std::fs::read_to_string(path)
+            .unwrap_or_default()
+            .replace("\r\n", "\n");
+        assert!(
+            current == generated,
+            "docs/src/reference.md is out of date; run REAPER_MCP_UPDATE_DOCS=1 cargo test"
+        );
+    }
+
+    fn tool_reference() -> String {
+        let mut tools = ReaperMcp::tool_router().list_all();
+        tools.sort_by(|a, b| a.name.cmp(&b.name));
+        let mut out = format!(
+            "# Tool reference\n\n\
+             All {} tools with their arguments, generated from the tool definitions. To change a\n\
+             description, edit `src/server.rs` or `src/args.rs` and run\n\
+             `REAPER_MCP_UPDATE_DOCS=1 cargo test`.\n\n\
+             Track indexes start at 0; `-1` is the master track.\n",
+            tools.len()
+        );
+        for tool in &tools {
+            out.push_str(&format!("\n## `{}`\n\n", tool.name));
+            out.push_str(&escape_html(
+                tool.description.as_deref().unwrap_or("").trim(),
+            ));
+            out.push('\n');
+            let schema = &tool.input_schema;
+            let required: BTreeSet<&str> = schema
+                .get("required")
+                .and_then(|r| r.as_array())
+                .map(|r| r.iter().filter_map(|v| v.as_str()).collect())
+                .unwrap_or_default();
+            let Some(properties) = schema.get("properties").and_then(|p| p.as_object()) else {
+                out.push_str("\nNo arguments.\n");
+                continue;
+            };
+            if properties.is_empty() {
+                out.push_str("\nNo arguments.\n");
+                continue;
+            }
+            out.push_str("\n| Argument | Type | Description |\n|---|---|---|\n");
+            for (name, property) in properties {
+                let mark = if required.contains(name.as_str()) {
+                    " (required)"
+                } else {
+                    ""
+                };
+                let description = property
+                    .get("description")
+                    .and_then(|d| d.as_str())
+                    .unwrap_or("")
+                    .replace('\n', " ")
+                    .replace('|', "\\|");
+                let description = escape_html(&description);
+                out.push_str(&format!(
+                    "| `{name}`{mark} | {} | {description} |\n",
+                    type_name(property)
+                ));
+            }
+        }
+        out
+    }
+
+    /// Keeps placeholders such as `<ext>` visible in the rendered book.
+    fn escape_html(text: &str) -> String {
+        text.replace('<', "&lt;").replace('>', "&gt;")
+    }
+
+    fn type_name(property: &serde_json::Value) -> String {
+        if let Some(kind) = property.get("type") {
+            return match kind {
+                serde_json::Value::Array(kinds) => kinds
+                    .iter()
+                    .filter_map(|k| k.as_str())
+                    .filter(|k| *k != "null")
+                    .collect::<Vec<_>>()
+                    .join(" or "),
+                other => other.as_str().unwrap_or("value").to_string(),
+            };
+        }
+        if let Some(reference) = property.get("$ref").and_then(|r| r.as_str()) {
+            return reference.rsplit('/').next().unwrap_or("object").to_string();
+        }
+        for key in ["anyOf", "oneOf"] {
+            if let Some(options) = property.get(key).and_then(|o| o.as_array()) {
+                return options
+                    .iter()
+                    .map(type_name)
+                    .filter(|t| t != "null")
+                    .collect::<Vec<_>>()
+                    .join(" or ");
+            }
+        }
+        "value".to_string()
+    }
+
     /// Every command the server sends must have a handler in the Lua bridge.
     #[test]
     fn every_bridge_command_has_a_lua_handler() {
