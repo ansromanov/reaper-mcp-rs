@@ -1,0 +1,31 @@
+<TRACK
+  NAME "Guitar L"
+  VOLPAN 0.75 -0.2 1
+  <FXCHAIN
+    SHOW 1
+    <VST "VST: Old Compressor"
+    >
+    FXID {22222222-2222-4222-8222-222222222222}
+  >
+  <PARMENV
+    PARM 0 3
+    PT 0 0.8 0
+  >
+  <PROGRAMENV
+    PARM 1 2
+  >
+  <VOLENV2
+    ACT 1
+    PT 0 0.75 0
+  >
+  <AUXRECV 4 1 0 0 0 0 1 0 0 0 0 0 0 0 0 0
+  >
+  <AUXRECV 7 1 0 0 0 0 1 0 0 0 0 0 0 0 0 0
+  >
+  <ITEM
+    POSITION 0
+    <SOURCE WAVE
+      FILE "preserve.wav"
+    >
+  >
+>

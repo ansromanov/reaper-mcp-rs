@@ -1,0 +1,29 @@
+<TRACK
+  NAME "GUITARS"
+  <FXCHAIN
+    SHOW 1
+    LASTSEL 2
+    DOCKED 1
+    FLOATPOS 10 20 300 400
+    closeflags 3
+    <VST "VST: Source EQ"
+      <STATE
+        VALUE 0.25
+      >
+    >
+    FXID {11111111-1111-4111-8111-111111111111}
+    <VST "VST: Source Saturator"
+    >
+    FXID {44444444-4444-4444-8444-444444444444}
+  >
+  <PARMENV
+    PARM 0 0
+    PT 0 0.2 0
+  >
+>
+<TRACK
+  NAME BASS
+>
+<TRACK
+  NAME
+>
