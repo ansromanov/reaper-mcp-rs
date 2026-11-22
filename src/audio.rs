@@ -13,9 +13,9 @@ use serde::Serialize;
 
 /// Third-octave band centres from 20 Hz to 20 kHz.
 pub const THIRD_OCTAVE: [f64; 31] = [
-    20.0, 25.0, 31.5, 40.0, 50.0, 63.0, 80.0, 100.0, 125.0, 160.0, 200.0, 250.0, 315.0, 400.0, 500.0,
-    630.0, 800.0, 1000.0, 1250.0, 1600.0, 2000.0, 2500.0, 3150.0, 4000.0, 5000.0, 6300.0, 8000.0,
-    10000.0, 12500.0, 16000.0, 20000.0,
+    20.0, 25.0, 31.5, 40.0, 50.0, 63.0, 80.0, 100.0, 125.0, 160.0, 200.0, 250.0, 315.0, 400.0,
+    500.0, 630.0, 800.0, 1000.0, 1250.0, 1600.0, 2000.0, 2500.0, 3150.0, 4000.0, 5000.0, 6300.0,
+    8000.0, 10000.0, 12500.0, 16000.0, 20000.0,
 ];
 
 /// Coarse bands used in mixing notes: name, low edge, high edge in Hz.
@@ -60,7 +60,8 @@ impl Audio {
 
 /// Reads a WAV file (16, 24 or 32-bit integer or 32-bit float), optionally only a time range.
 pub fn read(path: &Path, start_seconds: Option<f64>, end_seconds: Option<f64>) -> Result<Audio> {
-    let mut reader = hound::WavReader::open(path).with_context(|| format!("cannot open {}", path.display()))?;
+    let mut reader =
+        hound::WavReader::open(path).with_context(|| format!("cannot open {}", path.display()))?;
     let spec = reader.spec();
     let channels = usize::from(spec.channels);
     let total = reader.duration() as u64;
@@ -70,9 +71,13 @@ pub fn read(path: &Path, start_seconds: Option<f64>, end_seconds: Option<f64>) -
         .unwrap_or(total)
         .min(total);
     if start >= end {
-        return Err(anyhow!("empty time range: file has {total} frames, range is {start}..{end}"));
+        return Err(anyhow!(
+            "empty time range: file has {total} frames, range is {start}..{end}"
+        ));
     }
-    reader.seek(start as u32).context("cannot seek in the file")?;
+    reader
+        .seek(start as u32)
+        .context("cannot seek in the file")?;
     let wanted = (end - start) as usize;
     let mut data: Vec<Vec<f32>> = vec![Vec::with_capacity(wanted); channels];
     let integer = spec.sample_format == hound::SampleFormat::Int;
@@ -92,7 +97,11 @@ pub fn read(path: &Path, start_seconds: Option<f64>, end_seconds: Option<f64>) -
             }
         }
     }
-    Ok(Audio { rate: spec.sample_rate, channels: data, integer })
+    Ok(Audio {
+        rate: spec.sample_rate,
+        channels: data,
+        integer,
+    })
 }
 
 fn db(power: f64) -> f64 {
@@ -129,13 +138,20 @@ fn k_weighting(rate: f64) -> [Biquad; 2] {
     let vb = vh.powf(0.4996667741545416);
     let a0 = 1.0 + k / q + k * k;
     let shelf = Biquad {
-        b: [(vh + vb * k / q + k * k) / a0, 2.0 * (k * k - vh) / a0, (vh - vb * k / q + k * k) / a0],
+        b: [
+            (vh + vb * k / q + k * k) / a0,
+            2.0 * (k * k - vh) / a0,
+            (vh - vb * k / q + k * k) / a0,
+        ],
         a: [2.0 * (k * k - 1.0) / a0, (1.0 - k / q + k * k) / a0],
     };
     let (f0, q) = (38.13547087602444, 0.5003270373238773);
     let k = (std::f64::consts::PI * f0 / rate).tan();
     let a0 = 1.0 + k / q + k * k;
-    let high_pass = Biquad { b: [1.0, -2.0, 1.0], a: [2.0 * (k * k - 1.0) / a0, (1.0 - k / q + k * k) / a0] };
+    let high_pass = Biquad {
+        b: [1.0, -2.0, 1.0],
+        a: [2.0 * (k * k - 1.0) / a0, (1.0 - k / q + k * k) / a0],
+    };
     [shelf, high_pass]
 }
 
@@ -166,13 +182,21 @@ fn loudness(audio: &Audio) -> (f64, f64) {
         .map(|s| (cumulative[s + block] - cumulative[s]) / block as f64)
         .collect();
     let lufs = |power: f64| -0.691 + db(power);
-    let absolute: Vec<f64> = blocks.iter().copied().filter(|&p| lufs(p) > -70.0).collect();
+    let absolute: Vec<f64> = blocks
+        .iter()
+        .copied()
+        .filter(|&p| lufs(p) > -70.0)
+        .collect();
     if absolute.is_empty() {
         return (f64::NAN, 0.0);
     }
     let mean = |v: &[f64]| v.iter().sum::<f64>() / v.len() as f64;
     let relative_gate = lufs(mean(&absolute)) - 10.0;
-    let gated: Vec<f64> = blocks.iter().copied().filter(|&p| lufs(p) > relative_gate).collect();
+    let gated: Vec<f64> = blocks
+        .iter()
+        .copied()
+        .filter(|&p| lufs(p) > relative_gate)
+        .collect();
     let integrated = lufs(mean(&gated));
     // Loudness range from 3 s windows, one per second, above the relative gate.
     let window = (3.0 * rate) as usize;
@@ -188,7 +212,11 @@ fn loudness(audio: &Audio) -> (f64, f64) {
     }
     shorts.sort_by(|a, b| a.partial_cmp(b).unwrap());
     let percentile = |p: f64| shorts[((shorts.len() - 1) as f64 * p) as usize];
-    let range = if shorts.len() > 2 { percentile(0.95) - percentile(0.10) } else { 0.0 };
+    let range = if shorts.len() > 2 {
+        percentile(0.95) - percentile(0.10)
+    } else {
+        0.0
+    };
     (integrated, range)
 }
 
@@ -199,7 +227,9 @@ fn spectrum(audio: &Audio) -> (Vec<f64>, f64) {
     let mut planner = FftPlanner::<f32>::new();
     let fft: Arc<dyn rustfft::Fft<f32>> = planner.plan_fft_forward(WELCH_SIZE);
     let window: Vec<f32> = (0..WELCH_SIZE)
-        .map(|n| 0.5 - 0.5 * (2.0 * std::f32::consts::PI * n as f32 / (WELCH_SIZE as f32 - 1.0)).cos())
+        .map(|n| {
+            0.5 - 0.5 * (2.0 * std::f32::consts::PI * n as f32 / (WELCH_SIZE as f32 - 1.0)).cos()
+        })
         .collect();
     let window_power: f64 = window.iter().map(|w| f64::from(*w * *w)).sum();
     let mut accumulated = vec![0.0f64; WELCH_SIZE / 2 + 1];
@@ -269,11 +299,16 @@ pub fn analyze(audio: &Audio) -> Analysis {
     let total_samples = (frames * audio.channels.len().max(1)) as f64;
     let rms = (squares / total_samples).sqrt();
     let threshold = if audio.integer { 0.9999 } else { 1.0 };
-    let over = all.filter(|v| v.abs() >= threshold && (audio.integer || v.abs() > threshold)).count();
+    let over = all
+        .filter(|v| v.abs() >= threshold && (audio.integer || v.abs() > threshold))
+        .count();
     let side_to_mid = if audio.channels.len() >= 2 {
         let (mut mid, mut side) = (0.0f64, 0.0f64);
         for i in 0..frames {
-            let (l, r) = (f64::from(audio.channels[0][i]), f64::from(audio.channels[1][i]));
+            let (l, r) = (
+                f64::from(audio.channels[0][i]),
+                f64::from(audio.channels[1][i]),
+            );
             mid += ((l + r) / 2.0).powi(2);
             side += ((l - r) / 2.0).powi(2);
         }
@@ -285,13 +320,21 @@ pub fn analyze(audio: &Audio) -> Analysis {
     let (power, bin_hz) = spectrum(audio);
     let bands = MIX_BANDS
         .iter()
-        .map(|(name, low, high)| Band { name: (*name).to_string(), db: db(band_power(&power, bin_hz, *low, *high)) })
+        .map(|(name, low, high)| Band {
+            name: (*name).to_string(),
+            db: db(band_power(&power, bin_hz, *low, *high)),
+        })
         .collect();
     let third_octave = THIRD_OCTAVE
         .iter()
         .map(|c| Band {
             name: format!("{c}"),
-            db: db(band_power(&power, bin_hz, c / 2f64.powf(1.0 / 6.0), c * 2f64.powf(1.0 / 6.0))),
+            db: db(band_power(
+                &power,
+                bin_hz,
+                c / 2f64.powf(1.0 / 6.0),
+                c * 2f64.powf(1.0 / 6.0),
+            )),
         })
         .collect();
     let peak_db = 20.0 * peak.max(1e-12).log10();
@@ -299,8 +342,16 @@ pub fn analyze(audio: &Audio) -> Analysis {
     if over > 0 {
         warnings.push(format!(
             "{over} samples at or above full scale ({}); levels above 0 dBFS are {}",
-            if audio.integer { "integer file" } else { "float file" },
-            if audio.integer { "already cut off in this file, render as float32 to see the real peak" } else { "overloads" }
+            if audio.integer {
+                "integer file"
+            } else {
+                "float file"
+            },
+            if audio.integer {
+                "already cut off in this file, render as float32 to see the real peak"
+            } else {
+                "overloads"
+            }
         ));
     }
     if peak_db > -0.1 {
