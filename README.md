@@ -212,7 +212,8 @@ calls at all.
 | Control surfaces (`CSurf_*`) | 0 / 52 | — | not planned: an MCP client is not a control surface |
 | UI, themes, docking, other | 9 / 140 | refresh after edits; window inspection on Windows (without the API) | mostly out of scope for an MCP server |
 
-Extension APIs such as SWS, js_ReaScriptAPI and ReaImGui are not used.
+Extension APIs such as SWS, js_ReaScriptAPI and ReaImGui are not used. The order in which the gaps get
+closed is in [ROADMAP.md](ROADMAP.md).
 
 ## Scope
 
