@@ -21,19 +21,23 @@ jobs:
       # The bridge tests run the real Lua bridge; here they must not be skipped.
       REAPER_MCP_REQUIRE_LUA: "1"
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
         with:
+          toolchain: stable
           components: clippy, rustfmt
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
 
       - name: Install Lua 5.4 and ShellCheck
         run: sudo apt-get update && sudo apt-get install -y lua5.4 shellcheck
 
       - name: Format
         run: cargo fmt --all -- --check
+
+      - name: File size limit
+        run: python3 scripts/check-file-size.py
 
       - name: Clippy
         run: cargo clippy --all-targets -- -D warnings
@@ -59,13 +63,14 @@ jobs:
           - { name: macOS, os: macos-latest }
           - { name: Windows, os: windows-latest }
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
         with:
+          toolchain: stable
           components: clippy
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
 
       # Windows-only code (window inspection, bridge restart) is compiled only here.
       - name: Clippy

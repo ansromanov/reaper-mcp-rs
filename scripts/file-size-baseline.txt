@@ -1,0 +1,5 @@
+# Production files that were over the limit when the gate was added.
+# Sizes can only go down: split the module, then lower or remove the entry.
+lua/reaper_mcp_handlers.lua 2544
+src/server.rs 1042
+src/args.rs 910
