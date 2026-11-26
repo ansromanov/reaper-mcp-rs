@@ -26,5 +26,5 @@ fast-test:
 
 # Lua syntax and shell scripts, as in CI.
 scripts:
-    for f in lua/*.lua tests/lua/*.lua; do luac5.4 -p "$f"; done
+    for f in lua/*.lua lua/handlers/*.lua tests/lua/*.lua; do luac5.4 -p "$f"; done
     shellcheck scripts/*.sh

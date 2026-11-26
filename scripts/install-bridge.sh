@@ -33,9 +33,12 @@ fi
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 target="$resource_dir/Scripts/reaper-mcp"
 
-mkdir -p "$target/vendor"
+mkdir -p "$target/vendor" "$target/handlers"
 install -m 0644 "$repo_root/lua/reaper_mcp_bridge.lua" "$target/reaper_mcp_bridge.lua"
 install -m 0644 "$repo_root/lua/reaper_mcp_handlers.lua" "$target/reaper_mcp_handlers.lua"
+for handler in "$repo_root"/lua/handlers/*.lua; do
+  install -m 0644 "$handler" "$target/handlers/$(basename "$handler")"
+done
 install -m 0644 "$repo_root/lua/vendor/json.lua" "$target/vendor/json.lua"
 install -m 0644 "$repo_root/lua/vendor/json.LICENSE" "$target/vendor/json.LICENSE"
 printf 'Installed bridge to %s\n' "$target"

@@ -43,7 +43,7 @@ jobs:
         run: cargo clippy --all-targets -- -D warnings
 
       - name: Lua syntax
-        run: for f in lua/*.lua tests/lua/*.lua; do luac5.4 -p "$f"; done
+        run: for f in lua/*.lua lua/handlers/*.lua tests/lua/*.lua; do luac5.4 -p "$f"; done
 
       - name: Shell scripts
         run: shellcheck scripts/*.sh

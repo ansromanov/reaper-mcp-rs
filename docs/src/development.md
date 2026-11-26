@@ -5,14 +5,14 @@
 | Path | What |
 |---|---|
 | `src/main.rs` | Binary: flags, then the MCP server on stdio. |
-| `src/server.rs` | The MCP tools. Most forward their arguments to a Lua handler. |
-| `src/args.rs` | Tool arguments; their doc comments become the JSON schema descriptions. |
+| `src/server/` | The MCP tools (`mod.rs`). Most forward their arguments to a Lua handler; the larger bodies are in `handlers.rs`. |
+| `src/args/` | Tool arguments; their doc comments become the JSON schema descriptions. |
 | `src/bridge.rs` | File-based IPC client for the Lua bridge. |
 | `src/track_templates.rs` | Track template and FX chain manipulation on REAPER state chunks. |
 | `src/audio.rs` | WAV reading, loudness (BS.1770), spectrum and comparison. |
 | `src/reaper_host.rs` | Windows-only helpers that work without the bridge. |
 | `lua/reaper_mcp_bridge.lua` | The loop inside REAPER: reads requests, runs handlers, writes responses and the heartbeat. |
-| `lua/reaper_mcp_handlers.lua` | One handler per command; reloadable with `reload_bridge`. |
+| `lua/reaper_mcp_handlers.lua`, `lua/handlers/` | One handler per command, grouped by area (`project`, `tracks`, `items`, `fx`, `envelopes`, `render`); shared helpers in `support.lua`. Reloadable with `reload_bridge`. |
 | `tests/lua/fake_reaper.lua` | In-memory fake of the ReaScript API for tests. |
 | `docs/` | This book (mdBook). |
 
@@ -37,16 +37,16 @@ request can be merged only when CI passes.
   and CI requires them (`REAPER_MCP_REQUIRE_LUA=1`). The fake raises an error naming any
   ReaScript function it does not implement, so extend it when a test needs more.
 - **`tests/audio_analysis.rs`** checks the analysis against generated sines with known levels.
-- **Consistency checks** in `src/server.rs`: every tool has a unique name, a description and an
+- **Consistency checks** in `src/server/mod_test.rs`: every tool has a unique name, a description and an
   object schema; every command the server sends has a Lua handler; `docs/src/reference.md` matches
   the tool definitions.
 
 ## Adding a tool
 
-1. Add the arguments to `src/args.rs` with a doc comment on every field.
-2. Add the tool to `src/server.rs` with a description that says what it changes and what it
+1. Add the arguments to the matching file in `src/args/` with a doc comment on every field.
+2. Add the tool to `src/server/mod.rs` with a description that says what it changes and what it
    returns.
-3. Add the handler to `lua/reaper_mcp_handlers.lua` as `handlers.<name> = function(args)`.
+3. Add the handler to the matching file in `lua/handlers/` as `handlers.<name> = function(args)`.
    Validate arguments first, then change the project inside `undo("…", function() … end)`.
 4. Add a test in `tests/bridge_ipc.rs` and the ReaScript functions it needs to the fake.
 5. Regenerate the reference: `REAPER_MCP_UPDATE_DOCS=1 cargo test`.

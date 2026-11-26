@@ -2,20 +2,19 @@
 
 use std::time::Duration;
 
-use anyhow::{anyhow, Context, Result};
-use rmcp::{
-    handler::server::wrapper::Parameters,
-    model::{CallToolResult, ContentBlock},
-    tool, tool_router,
-};
-use serde::Serialize;
-use serde_json::{json, Value};
+use anyhow::{anyhow, Result};
+use rmcp::{handler::server::wrapper::Parameters, model::CallToolResult, tool, tool_router};
+use serde_json::json;
+
+mod handlers;
+mod support;
+
+pub(crate) use support::{round_json, run_blocking, tool_result};
 
 use crate::{
     args::*,
-    audio,
     bridge::{bridge_tool, bridge_tool_timeout, BridgeClient, LONG_TIMEOUT},
-    reaper_host, track_templates,
+    reaper_host,
 };
 
 /// The MCP server. Tools that change a project go through the Lua bridge.
@@ -28,48 +27,6 @@ impl ReaperMcp {
     pub fn new(bridge: BridgeClient) -> Self {
         Self { bridge }
     }
-}
-
-pub(crate) fn tool_result(result: Result<Value>) -> CallToolResult {
-    match result {
-        Ok(value) => CallToolResult::success(vec![ContentBlock::text(
-            serde_json::to_string_pretty(&value).unwrap_or_else(|_| value.to_string()),
-        )]),
-        Err(error) => CallToolResult::error(vec![ContentBlock::text(error.to_string())]),
-    }
-}
-
-pub(crate) fn round_json(value: Value, places: i32) -> Value {
-    match value {
-        Value::Number(n) => match n.as_f64() {
-            Some(f) if f.is_finite() && !n.is_i64() && !n.is_u64() => {
-                let scale = 10f64.powi(places);
-                json!((f * scale).round() / scale)
-            }
-            Some(f) if !f.is_finite() => Value::Null,
-            _ => Value::Number(n),
-        },
-        Value::Array(items) => {
-            Value::Array(items.into_iter().map(|v| round_json(v, places)).collect())
-        }
-        Value::Object(map) => Value::Object(
-            map.into_iter()
-                .map(|(k, v)| (k, round_json(v, places)))
-                .collect(),
-        ),
-        other => other,
-    }
-}
-
-pub(crate) async fn run_blocking<T: Serialize + Send + 'static>(
-    job: impl FnOnce() -> Result<T> + Send + 'static,
-) -> CallToolResult {
-    let result = tokio::task::spawn_blocking(job)
-        .await
-        .context("analysis worker stopped unexpectedly")
-        .and_then(|result| result)
-        .and_then(|value| Ok(round_json(serde_json::to_value(value)?, 1)));
-    tool_result(result)
 }
 
 #[tool_router(server_handler)]
@@ -227,59 +184,7 @@ impl ReaperMcp {
         &self,
         Parameters(args): Parameters<ApplyTrackFxTemplateArgs>,
     ) -> CallToolResult {
-        if args.template_path.trim().is_empty() {
-            return tool_result(Err(anyhow!("template_path must be a non-empty path")));
-        }
-        if args.source_track.trim().is_empty() {
-            return tool_result(Err(anyhow!("source_track must be a non-empty name")));
-        }
-        let mode = args.mode.unwrap_or_else(|| "replace".to_string());
-        if !matches!(mode.as_str(), "replace" | "append") {
-            return tool_result(Err(anyhow!("mode must be 'replace' or 'append'")));
-        }
-        let bridge = self.bridge.clone();
-        let result = tokio::task::spawn_blocking(move || {
-            let source_chain = track_templates::read_template_fx_chain(
-                std::path::Path::new(&args.template_path),
-                &args.source_track,
-            )
-            .map_err(|error| anyhow!(error))?;
-            let target = args.target_track;
-            let current = bridge.call(
-                "get_track_state_chunk",
-                json!({ "track": target }),
-                LONG_TIMEOUT,
-            )?;
-            let current_chunk = current
-                .get("chunk")
-                .and_then(Value::as_str)
-                .ok_or_else(|| {
-                    anyhow!("REAPER did not return the destination track state chunk")
-                })?;
-            let replacement = match mode.as_str() {
-                "append" => {
-                    track_templates::append_track_fx_chain(current_chunk, source_chain.as_deref())
-                }
-                _ => {
-                    track_templates::replace_track_fx_chain(current_chunk, source_chain.as_deref())
-                }
-            }
-            .map_err(|error| anyhow!(error))?;
-            bridge.call(
-                "set_track_state_chunk",
-                json!({
-                    "track": target,
-                    "chunk": replacement,
-                    "close_fx_windows": true,
-                    "preserve_existing_fx_windows": mode == "append",
-                }),
-                LONG_TIMEOUT,
-            )
-        })
-        .await
-        .context("FX template worker stopped unexpectedly")
-        .and_then(|result| result);
-        tool_result(result)
+        self.apply_fx_template(args).await
     }
 
     #[tool(
@@ -313,46 +218,7 @@ impl ReaperMcp {
         &self,
         Parameters(args): Parameters<ProbeInstrumentOutputsArgs>,
     ) -> CallToolResult {
-        let bridge = self.bridge.clone();
-        let result = tokio::task::spawn_blocking(move || -> Result<Value> {
-            let mut probe =
-                bridge.call("probe_instrument_outputs", to_args(&args), LONG_TIMEOUT)?;
-            if let Some(pairs) = probe.get_mut("pairs").and_then(Value::as_array_mut) {
-                for pair in pairs.iter_mut() {
-                    let Some(path) = pair.get("file").and_then(Value::as_str).map(str::to_owned)
-                    else {
-                        continue;
-                    };
-                    match audio::read(std::path::Path::new(&path), None, None) {
-                        Ok(audio) => {
-                            let analysis = audio::analyze(&audio);
-                            let silent = analysis.peak_dbfs < -90.0;
-                            let loudest = analysis
-                                .bands
-                                .iter()
-                                .max_by(|a, b| {
-                                    a.db.partial_cmp(&b.db).unwrap_or(std::cmp::Ordering::Equal)
-                                })
-                                .map(|band| band.name.clone());
-                            pair["silent"] = json!(silent);
-                            if !silent {
-                                pair["integrated_lufs"] = json!(analysis.integrated_lufs);
-                                pair["peak_dbfs"] = json!(analysis.peak_dbfs);
-                                pair["crest_db"] = json!(analysis.crest_db);
-                                pair["loudest_band"] = json!(loudest);
-                                pair["side_to_mid_db"] = json!(analysis.side_to_mid_db);
-                            }
-                        }
-                        Err(error) => pair["error"] = json!(error.to_string()),
-                    }
-                }
-            }
-            Ok(round_json(probe, 1))
-        })
-        .await
-        .context("REAPER IPC worker stopped unexpectedly")
-        .and_then(|result| result);
-        tool_result(result)
+        self.probe_outputs(args).await
     }
 
     #[tool(
@@ -768,15 +634,7 @@ impl ReaperMcp {
         &self,
         Parameters(args): Parameters<AnalyzeAudioArgs>,
     ) -> CallToolResult {
-        run_blocking(move || {
-            let audio = audio::read(
-                std::path::Path::new(&args.path),
-                args.start_seconds,
-                args.end_seconds,
-            )?;
-            Ok(audio::analyze(&audio))
-        })
-        .await
+        self.analyze(args).await
     }
 
     #[tool(
@@ -786,25 +644,7 @@ impl ReaperMcp {
         &self,
         Parameters(args): Parameters<CompareAudioArgs>,
     ) -> CallToolResult {
-        run_blocking(move || {
-            let (a_start, b_start) = (
-                args.a_start_seconds.unwrap_or(0.0),
-                args.b_start_seconds.unwrap_or(0.0),
-            );
-            let end = |start: f64| args.duration_seconds.map(|d| start + d);
-            let a = audio::read(std::path::Path::new(&args.a), Some(a_start), end(a_start))?;
-            let b = audio::read(std::path::Path::new(&args.b), Some(b_start), end(b_start))?;
-            // Compare the same length when no duration was given.
-            let frames = a.frames().min(b.frames());
-            let trim = |mut x: audio::Audio| {
-                for channel in &mut x.channels {
-                    channel.truncate(frames);
-                }
-                x
-            };
-            Ok(audio::compare(&trim(a), &trim(b)))
-        })
-        .await
+        self.compare(args).await
     }
 
     #[tool(
@@ -849,194 +689,5 @@ impl ReaperMcp {
 }
 
 #[cfg(test)]
-mod tests {
-    use std::collections::BTreeSet;
-
-    use serde_json::json;
-
-    use super::{round_json, ReaperMcp};
-
-    #[test]
-    fn round_json_rounds_floats_and_drops_non_finite_values() {
-        let value = json!({"a": 1.2345, "b": [2, -0.06], "c": "x", "d": 7});
-        assert_eq!(
-            round_json(value, 1),
-            json!({"a": 1.2, "b": [2, -0.1], "c": "x", "d": 7})
-        );
-        assert_eq!(
-            round_json(serde_json::to_value(f64::NAN).unwrap(), 1),
-            json!(null)
-        );
-    }
-
-    #[test]
-    fn every_tool_has_a_unique_name_a_description_and_an_object_schema() {
-        let tools = ReaperMcp::tool_router().list_all();
-        assert!(tools.len() > 70, "only {} tools registered", tools.len());
-        let mut names = BTreeSet::new();
-        for tool in &tools {
-            assert!(
-                names.insert(tool.name.to_string()),
-                "duplicate tool {}",
-                tool.name
-            );
-            assert!(
-                tool.description.as_deref().is_some_and(|d| d.len() > 20),
-                "tool {} needs a description",
-                tool.name
-            );
-            assert_eq!(
-                tool.input_schema.get("type"),
-                Some(&json!("object")),
-                "tool {} input schema",
-                tool.name
-            );
-        }
-    }
-
-    /// `docs/src/reference.md` lists every tool with its arguments. It is generated from the tool
-    /// definitions; run `REAPER_MCP_UPDATE_DOCS=1 cargo test` to rewrite it after changing a tool.
-    #[test]
-    fn tool_reference_is_up_to_date() {
-        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/docs/src/reference.md");
-        let generated = tool_reference();
-        if std::env::var_os("REAPER_MCP_UPDATE_DOCS").is_some() {
-            std::fs::write(path, &generated).unwrap();
-            return;
-        }
-        // A Windows checkout may turn the file's line endings into CRLF.
-        let current = std::fs::read_to_string(path)
-            .unwrap_or_default()
-            .replace("\r\n", "\n");
-        assert!(
-            current == generated,
-            "docs/src/reference.md is out of date; run REAPER_MCP_UPDATE_DOCS=1 cargo test"
-        );
-    }
-
-    fn tool_reference() -> String {
-        let mut tools = ReaperMcp::tool_router().list_all();
-        tools.sort_by(|a, b| a.name.cmp(&b.name));
-        let mut out = format!(
-            "# Tool reference\n\n\
-             All {} tools with their arguments, generated from the tool definitions. To change a\n\
-             description, edit `src/server.rs` or `src/args.rs` and run\n\
-             `REAPER_MCP_UPDATE_DOCS=1 cargo test`.\n\n\
-             Track indexes start at 0; `-1` is the master track.\n",
-            tools.len()
-        );
-        for tool in &tools {
-            out.push_str(&format!("\n## `{}`\n\n", tool.name));
-            out.push_str(&escape_html(
-                tool.description.as_deref().unwrap_or("").trim(),
-            ));
-            out.push('\n');
-            let schema = &tool.input_schema;
-            let required: BTreeSet<&str> = schema
-                .get("required")
-                .and_then(|r| r.as_array())
-                .map(|r| r.iter().filter_map(|v| v.as_str()).collect())
-                .unwrap_or_default();
-            let Some(properties) = schema.get("properties").and_then(|p| p.as_object()) else {
-                out.push_str("\nNo arguments.\n");
-                continue;
-            };
-            if properties.is_empty() {
-                out.push_str("\nNo arguments.\n");
-                continue;
-            }
-            out.push_str("\n| Argument | Type | Description |\n|---|---|---|\n");
-            for (name, property) in properties {
-                let mark = if required.contains(name.as_str()) {
-                    " (required)"
-                } else {
-                    ""
-                };
-                let description = property
-                    .get("description")
-                    .and_then(|d| d.as_str())
-                    .unwrap_or("")
-                    .replace('\n', " ")
-                    .replace('|', "\\|");
-                let description = escape_html(&description);
-                out.push_str(&format!(
-                    "| `{name}`{mark} | {} | {description} |\n",
-                    type_name(property)
-                ));
-            }
-        }
-        out
-    }
-
-    /// Keeps placeholders such as `<ext>` visible in the rendered book.
-    fn escape_html(text: &str) -> String {
-        text.replace('<', "&lt;").replace('>', "&gt;")
-    }
-
-    fn type_name(property: &serde_json::Value) -> String {
-        if let Some(kind) = property.get("type") {
-            return match kind {
-                serde_json::Value::Array(kinds) => kinds
-                    .iter()
-                    .filter_map(|k| k.as_str())
-                    .filter(|k| *k != "null")
-                    .collect::<Vec<_>>()
-                    .join(" or "),
-                other => other.as_str().unwrap_or("value").to_string(),
-            };
-        }
-        if let Some(reference) = property.get("$ref").and_then(|r| r.as_str()) {
-            return reference.rsplit('/').next().unwrap_or("object").to_string();
-        }
-        for key in ["anyOf", "oneOf"] {
-            if let Some(options) = property.get(key).and_then(|o| o.as_array()) {
-                return options
-                    .iter()
-                    .map(type_name)
-                    .filter(|t| t != "null")
-                    .collect::<Vec<_>>()
-                    .join(" or ");
-            }
-        }
-        "value".to_string()
-    }
-
-    /// Every command the server sends must have a handler in the Lua bridge.
-    #[test]
-    fn every_bridge_command_has_a_lua_handler() {
-        let server = include_str!("server.rs");
-        let lua = include_str!("../lua/reaper_mcp_handlers.lua");
-        let handlers: BTreeSet<&str> = lua
-            .lines()
-            .filter_map(|line| {
-                let name = line
-                    .strip_prefix("handlers.")
-                    .or_else(|| line.strip_prefix("  "))?;
-                let (name, rest) = name.split_once(" = ")?;
-                (rest.starts_with("function")
-                    && name.chars().all(|c| c.is_ascii_lowercase() || c == '_'))
-                .then_some(name)
-            })
-            .collect();
-        let mut missing = Vec::new();
-        for marker in ["bridge_tool(", "bridge_tool_timeout("] {
-            for chunk in server.split(marker).skip(1) {
-                let Some(command) = chunk.split('"').nth(1) else {
-                    continue;
-                };
-                // Only literal command names, not the helper definitions.
-                if !command.is_empty()
-                    && command.chars().all(|c| c.is_ascii_lowercase() || c == '_')
-                    && command != "reload"
-                    && !handlers.contains(command)
-                {
-                    missing.push(command.to_string());
-                }
-            }
-        }
-        assert!(
-            missing.is_empty(),
-            "commands without a Lua handler: {missing:?}"
-        );
-    }
-}
+#[path = "mod_test.rs"]
+mod tests;

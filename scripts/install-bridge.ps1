@@ -8,7 +8,9 @@ $ErrorActionPreference = 'Stop'
 $source = Join-Path $PSScriptRoot '..\lua'
 $target = Join-Path $ResourceDir 'Scripts\reaper-mcp'
 New-Item -ItemType Directory -Force -Path (Join-Path $target 'vendor') | Out-Null
+New-Item -ItemType Directory -Force -Path (Join-Path $target 'handlers') | Out-Null
 Copy-Item -Force (Join-Path $source '*.lua') $target
+Copy-Item -Force (Join-Path $source 'handlers\*.lua') (Join-Path $target 'handlers')
 Copy-Item -Force (Join-Path $source 'vendor\*') (Join-Path $target 'vendor')
 Write-Host "Installed bridge to $target"
 
