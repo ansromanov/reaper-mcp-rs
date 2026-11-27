@@ -1,7 +1,7 @@
 # Tool reference
 
 All 77 tools with their arguments, generated from the tool definitions. To change a
-description, edit `src/server.rs` or `src/args.rs` and run
+description, edit `src/server/mod.rs` or `src/args/` and run
 `REAPER_MCP_UPDATE_DOCS=1 cargo test`.
 
 Track indexes start at 0; `-1` is the master track.

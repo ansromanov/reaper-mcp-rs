@@ -9,8 +9,8 @@ reaper-mcp-rs is an MCP server that lets an AI agent work on a real REAPER proje
 
 ## Layout
 
-- `src/` — the Rust MCP server (`server.rs` tool surface, `args.rs` argument types, `bridge.rs` IPC to REAPER, `audio.rs` analysis).
-- `lua/` — the ReaScript bridge that runs inside REAPER (`reaper_mcp_bridge.lua`, `reaper_mcp_handlers.lua`).
+- `src/` — the Rust MCP server (`server/` tool surface, `args/` argument types, `bridge.rs` IPC to REAPER, `audio.rs` analysis).
+- `lua/` — the ReaScript bridge that runs inside REAPER (`reaper_mcp_bridge.lua` loop, `reaper_mcp_handlers.lua` loader, `handlers/` one file per area).
 - `docs/` — the mdBook; the tool reference is generated, see below. `install.sh`, `install.ps1`, `scripts/` — installers and the release script.
 
 ## Rules worth knowing

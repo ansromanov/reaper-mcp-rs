@@ -38,7 +38,7 @@ local function write_text(path, text)
 end
 
 local function load_handlers()
-  local loaded = dofile(handlers_path)
+  local loaded = assert(loadfile(handlers_path))(script_dir)
   if type(loaded) ~= "table" then error("handlers module did not return a table") end
   handlers = loaded
 end
